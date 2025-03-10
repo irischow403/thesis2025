@@ -1,0 +1,290 @@
+---
+title: "baseline_submission_10"
+author: "Iris Chow"
+date: "2025-01-13"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(readr)
+testingG2F <- read_csv("testingG2F.csv")
+trainingG2F <- read_csv("trainingG2F.csv")
+template <- read_csv("~/UIUCDigitalHand/data_cleaning/testing_data/template.csv")
+```
+
+
+
+
+```{r}
+# Load the dplyr package
+library(dplyr)
+
+# Function to calculate the mode
+calculate_mode <- function(x) {
+  ux <- unique(x)
+  ux[which.max(tabulate(match(x, ux)))]
+}
+
+# Function to replace NA with median for numeric columns
+replace_na_with_median <- function(x) {
+  if (is.numeric(x)) {
+    x[is.na(x)] <- median(x, na.rm = TRUE)
+  }
+  return(x)
+}
+
+# Function to replace NA with mode for factor or character columns
+replace_na_with_mode <- function(x) {
+  if (is.factor(x) || is.character(x)) {
+    x[is.na(x)] <- calculate_mode(x)
+  }
+  return(x)
+}
+
+# Apply the functions to each column in trainingG2F
+trainingG2F <- trainingG2F %>%
+  mutate(across(where(is.numeric), replace_na_with_median)) %>%
+  mutate(across(where(is.factor), replace_na_with_mode)) %>%
+  mutate(across(where(is.character), replace_na_with_mode))
+
+# Apply the functions to each column in testingG2F
+testingG2F <- testingG2F %>%
+  mutate(across(where(is.numeric), replace_na_with_median)) %>%
+  mutate(across(where(is.factor), replace_na_with_mode)) %>%
+  mutate(across(where(is.character), replace_na_with_mode))
+
+# Print the first few rows to verify
+head(trainingG2F)
+head(testingG2F)
+
+```
+```{r}
+# Count the number of NA values in each column of the data frame
+na_counts <- sapply(trainingG2F, function(x) sum(is.na(x)))
+
+# Print the counts of NA values
+print(na_counts)
+
+```
+
+```{r}
+# Count the number of NA values in each column
+na_counts <- sapply(trainingG2F, function(x) sum(is.na(x)))
+
+# Print the counts of NA values
+print(na_counts)
+
+# Identify columns with any NA values
+cols_with_na <- names(na_counts[na_counts > 0])
+
+# Remove columns with NA values
+trainingG2F_clean <- trainingG2F[, !names(trainingG2F) %in% cols_with_na]
+
+# View the first few rows of the cleaned data frame
+head(trainingG2F_clean)
+
+```
+
+
+```{r}
+# Count the number of NA values in each column
+na_counts <- sapply(testingG2F, function(x) sum(is.na(x)))
+
+# Print the counts of NA values
+print(na_counts)
+
+# Identify columns with any NA values
+cols_with_na <- names(na_counts[na_counts > 0])
+
+# Remove columns with NA values
+testingG2F_clean <- trainingG2F[, !names(testingG2F) %in% cols_with_na]
+
+# View the first few rows of the cleaned data frame
+head(testingG2F_clean)
+```
+
+
+
+
+
+
+```{r}
+# Install and load the janitor package if you haven't already
+#install.packages("janitor")
+library(janitor)
+
+# Clean column names in trainingG2F and testingG2F
+trainingG2F_clean <- trainingG2F_clean %>% clean_names()
+testingG2F_clean <- testingG2F_clean %>% clean_names()
+
+
+# Print the updated column names to verify
+print(names(trainingG2F_clean))
+print(names(testingG2F_clean))
+
+
+```
+
+
+```{r}
+# Find common columns
+common_columns <- intersect(names(trainingG2F_clean), names(testingG2F_clean))
+common_columns
+```
+
+
+```{r}
+
+
+# Add 'Yield_Mg_ha' to the list of columns to keep
+columns_to_keep <- c(common_columns, "yield_mg_ha")
+
+# Subset trainingG2F to keep only the selected columns
+trainingG2F_common <- trainingG2F_clean[, columns_to_keep]
+
+# View the first few rows of the new data frame
+head(trainingG2F_common)
+
+# Keep only common columns in testingG2F
+testingG2F_common <- testingG2F_clean[, common_columns]
+
+# Verify the first few rows of the updated data frames
+head(trainingG2F_common)
+head(testingG2F_common)
+
+```
+
+```{r}
+write_csv(trainingG2F_common, "trainingG2F_common.csv")
+write_csv(testingG2F_common, "testingG2F_common.csv")
+```
+
+
+
+```{r}
+# Install and load the randomForest package if you haven't already
+#install.packages("randomForest")
+library(randomForest)
+
+
+
+# Train the Random Forest model
+rf_model <- randomForest(yield_mg_ha ~ ., data = trainingG2F_common, ntree = 500, mtry = 3, importance = TRUE)
+
+# Print the model summary
+print(rf_model)
+
+# Predict on the testing data
+predictions <- predict(rf_model, newdata = testingG2F_common)
+
+
+
+```
+
+# Make submission csv file
+```{r}
+template$Field_Location <- sub("_.*", "", template$Env)
+template 
+```
+
+```{r}
+library(dplyr)
+
+# Create a new data frame with Hybrid, Field_Location, and predictions
+predictions_df <- data.frame(Hybrid = testingG2F_common$hybrid,
+                             Field_Location = testingG2F_common$field_location,
+                             Yield_Mg_ha = predictions)
+
+# Join with the template data frame
+template1 <- template %>%
+  left_join(predictions_df, by = c( "Hybrid","Field_Location")) %>%
+  mutate(Yield_Mg_ha = coalesce(Yield_Mg_ha.y, Yield_Mg_ha.x)) %>%
+  select(-Yield_Mg_ha.y, -Yield_Mg_ha.x)
+
+# View the first few rows of the updated template
+head(template1)
+
+```
+
+# count how many na is 
+```{r}
+# Count the total number of NA values in the entire data frame
+total_na <- sum(is.na(template1))
+
+# Print the result
+print(total_na)
+
+```
+# Replace NA in Yield_Mg_ha with median in template1
+
+```{r}
+# Load dplyr if not already loaded
+library(dplyr)
+
+# Calculate the median of Yield_Mg_ha
+median_yield <- median(template1$Yield_Mg_ha, na.rm = TRUE)
+
+```
+
+
+```{r}
+# Replace NA values with the median
+template1 <- template1 %>%
+  mutate(Yield_Mg_ha = ifelse(is.na(Yield_Mg_ha), median_yield, Yield_Mg_ha))
+
+# View the first few rows of the updated data frame
+head(template1)
+
+```
+
+# remove Field_Location in template1
+
+```{r}
+# Load dplyr if not already loaded
+library(dplyr)
+
+# Remove the Field_Location column
+template1 <- template1 %>%
+  select(-Field_Location)
+
+# View the first few rows of the updated data frame
+head(template1)
+
+```
+
+```{r}
+# Check if Env columns are the same
+env_same <- all.equal(template$Env, template1$Env)
+
+# Check if Hybrid columns are the same
+hybrid_same <- all.equal(template$Hybrid, template1$Hybrid)
+
+# Print the results
+print(env_same)
+print(hybrid_same)
+
+```
+```{r}
+# Check NA values in each column for template
+na_template <- colSums(is.na(template))
+
+# Check NA values in each column for template1
+na_template1 <- colSums(is.na(template1))
+
+# Print the results
+print(na_template)
+print(na_template1)
+
+```
+
+
+
+```{r}
+write_csv(template1, "baseline_submission.csv")
+```
+
+

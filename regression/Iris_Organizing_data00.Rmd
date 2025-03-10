@@ -1,0 +1,360 @@
+---
+title: "Iris_Organising_data"
+output: html_document
+date: "2024-12-21"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+In this notebook, I am trying to merge all the datasets into one from the data_cleaning folder made by Graham. From each small dataset, I try to condense the dataset. Here is how I do it.
+
+In trait_data, I removed "Replicate" "Block""Plot""Range" "Pass" "Hybrid_orig_name" "Hybrid_Parent1""Hybrid_Parent2" .
+Then I merge selected_trait_data and env_cov data by Env.
+For the weather_season data, there are one row for each day for each Env, so I condensed the weather_season data group by Env, and calculate the average for other rows. Then, I merge the weather dataset with selected_trait_data and env_cov data.
+For meta_data, I selected Env,Treatment,City,Farm and merge with other df.
+I obtained lat, and long from envirotype_input. I group by Env and calculated the average.
+For soil_data, I select only Env, `%K Sat`, `%Ca Sat`, `%Mg Sat`, `%Na Sat`, `% Sand`, `% Silt`, `% Clay` and merge them all together by Env
+
+This is how I got to merged_data5 and obtain the csv. As the file size is too large to put in github. I have uploaded it to our google drive. https://drive.google.com/drive/folders/1pWHllpwmzqtKPwm218Wt96MxhtxkEvhT?usp=drive_link
+
+
+I would need help on start to fit a very simple model like random forest. Please try it and let me know if there's further adjustments needed in the merged_data5
+
+Another task is to utilize the genomic data, if catherine and graham could continue to work on that.
+
+thank you
+
+
+
+
+```{r}
+setwd("~/UIUCDigitalHand")
+library(readr)
+library(tidyverse)
+library(dplyr)
+library(lme4)
+library(mice)
+library(caret)
+library(randomForest)
+library(glmnet)
+```
+```{r}
+#env_cov <- read_csv("~/UIUCDigitalHand/data_cleaning/training_data/env_cov.csv")
+meta_data <- read_csv("~/UIUCDigitalHand/data_cleaning/training_data/meta_data.csv")
+soil_data <- read_csv("~/UIUCDigitalHand/data_cleaning/training_data/soil_data.csv")
+trait_data <- read_csv("~/UIUCDigitalHand/data_cleaning/training_data/trait_data.csv")
+weather_season <- read_csv("~/UIUCDigitalHand/data_cleaning/training_data/weather_season.csv")
+weather_year <- read_csv("~/UIUCDigitalHand/data_cleaning/training_data/weather_year.csv")
+hybrid_genetics_PCs <- read_csv("~/UIUCDigitalHand/data_cleaning/training_data/hybrid_genetics_PCs.csv")
+hybrid_env_PCs <- read_csv("~/UIUCDigitalHand/data_cleaning/training_data/hybrid_env_PCs.csv")
+#envirotype_input <- read_csv("data_cleaning/output_data/envirotype_input.csv")
+```
+
+# Get hybrid from trait
+
+```{r}
+library(dplyr)
+# Select multiple columns by names 
+selected_trait_data <- select(trait_data, "Env" ,"Year","Hybrid","Field_Location","Experiment","Yield_Mg_ha") 
+# Print the selected columns 
+print(selected_trait_data)
+```
+# join with PCs by hybrid
+```{r}
+
+# Rename the PC columns
+new_names <- names(hybrid_env_PCs)
+pc_indices <- grep("PC", new_names)
+new_names[pc_indices] <- paste0("env_", new_names[pc_indices])
+names(hybrid_env_PCs) <- new_names
+
+# Print the new column names
+print(names(hybrid_env_PCs))
+
+```
+
+```{r}
+merge1 <- full_join(selected_trait_data, hybrid_env_PCs, by = "Hybrid")
+head(merge1)
+```
+
+# Merge with another PC table
+
+```{r}
+# Rename the PC columns
+new_names <- names(hybrid_genetics_PCs)
+pc_indices <- grep("PC", new_names)
+new_names[pc_indices] <- paste0("genetics_", new_names[pc_indices])
+names(hybrid_genetics_PCs) <- new_names
+
+# Print the new column names
+print(names(hybrid_genetics_PCs))
+```
+
+```{r}
+merge2 <- full_join(merge1, hybrid_genetics_PCs, by = "Hybrid")
+head(merge2)
+```
+
+```{r}
+# remove "LabID" and "Comments" in soil_data
+# Load the dplyr package
+library(dplyr)
+
+# Assuming you have a data frame called soil_data
+# Remove the columns "LabID" and "Comments"
+soil_data <- soil_data %>% select(-LabID, -Comments)
+
+# Print the updated data frame
+print(soil_data)
+
+
+
+
+```
+
+
+
+```{r}
+merge3<-full_join(merge2, soil_data, by = "Env")
+```
+
+```{r}
+# Remove columns containing "Issue/comment"
+meta_data <- meta_data[, !grepl("Issue/comment", names(meta_data))]
+
+# Print the updated column names to verify
+print(names(meta_data))
+
+```
+```{r}
+# Assuming meta_data is your data frame
+
+# Calculate average latitude and longitude
+meta_data$Average_Latitude <- rowMeans(meta_data[, c(
+  "Latitude_of_Field_Corner_#1 (lower left)",
+  "Latitude_of_Field_Corner_#2 (lower right)",
+  "Latitude_of_Field_Corner_#3 (upper right)",
+  "Latitude_of_Field_Corner_#4 (upper left)"
+)], na.rm = TRUE)
+
+meta_data$Average_Longitude <- rowMeans(meta_data[, c(
+  "Longitude_of_Field_Corner_#1 (lower left)",
+  "Longitude_of_Field_Corner_#2 (lower right)",
+  "Longitude_of_Field_Corner_#3 (upper right)",
+  "Longitude_of_Field_Corner_#4 (upper left)"
+)], na.rm = TRUE)
+
+# Remove the corner columns
+corner_columns <- c(
+  "Latitude_of_Field_Corner_#1 (lower left)",
+  "Latitude_of_Field_Corner_#2 (lower right)",
+  "Latitude_of_Field_Corner_#3 (upper right)",
+  "Latitude_of_Field_Corner_#4 (upper left)",
+  "Longitude_of_Field_Corner_#1 (lower left)",
+  "Longitude_of_Field_Corner_#2 (lower right)",
+  "Longitude_of_Field_Corner_#3 (upper right)",
+  "Longitude_of_Field_Corner_#4 (upper left)"
+)
+
+meta_data <- meta_data[, !names(meta_data) %in% corner_columns]
+
+# Assuming meta_data is your data frame
+# Remove columns 8, 9, 13, and 14
+meta_data <- meta_data[, -c(8, 9, 13, 14)]
+meta_data <- meta_data[, -c(8)]
+
+# Print the updated column names to verify
+print(names(meta_data))
+
+
+
+```
+
+```{r}
+merge4 <- full_join(merge3, meta_data,by = "Env")
+```
+
+```{r}
+names(weather_season)
+```
+
+
+# combine weather_season and weaher_year first
+
+```{r}
+# Load the dplyr package
+library(dplyr)
+
+# Combine the data frames by rows
+combined_weather <- bind_rows(weather_season, weather_year)
+
+# Print the combined data frame
+print(combined_weather)
+
+```
+# simplify combined_weather
+
+```{r}
+# Load the dplyr package
+library(dplyr)
+
+# Remove the Date column
+combined_weather <- combined_weather %>% select(-Date)
+
+# Aggregate the data by Env and calculate the average for other columns
+aggregated_weather <- combined_weather %>%
+  group_by(Env) %>%
+  summarise(across(everything(), mean, na.rm = TRUE))
+
+# Print the aggregated data frame
+print(aggregated_weather)
+
+```
+
+
+
+```{r}
+trainingG2F <- full_join(merge4, aggregated_weather, by = "Env")
+```
+
+```{r}
+write_csv(trainingG2F, "trainingG2F.csv")
+```
+
+# Testing
+
+```{r}
+testing_meta_data <- read_csv("~/UIUCDigitalHand/data_cleaning/testing_data/meta_data.csv")
+testing_soil_data <- read_csv("~/UIUCDigitalHand/data_cleaning/testing_data/soil_data.csv")
+testing_weather_season <- read_csv("~/UIUCDigitalHand/data_cleaning/testing_data/weather_season.csv")
+testing_weather_year <- read_csv("~/UIUCDigitalHand/data_cleaning/testing_data/weather_year.csv")
+template <- read_csv("~/UIUCDigitalHand/data_cleaning/testing_data/template.csv")
+```
+
+```{r}
+library(dplyr)
+# Select multiple columns by names 
+submission_template <- select(template, "Env" , "Hybrid" ) 
+# Print the selected columns 
+print(submission_template)
+```
+
+```{r}
+test1 <- left_join(submission_template, hybrid_env_PCs, by = "Hybrid")
+```
+
+```{r}
+test2 <- left_join(test1, hybrid_genetics_PCs, by = "Hybrid")
+```
+
+```{r}
+# Create column Field_Location from Env
+# Assuming test2 is your data frame
+
+# Create the Field_Location column by extracting the part of Env before the "_"
+test2$Field_Location <- sub("_.*", "", test2$Env)
+
+# Print the first few rows to verify
+head(test2)
+
+```
+
+```{r}
+# remove "LabID" and "Comments" in soil_data
+# Load the dplyr package
+library(dplyr)
+
+# Assuming you have a data frame called soil_data
+# Remove the columns "LabID" and "Comments"
+testing_soil_data <- testing_soil_data %>% select(-LabID, -Comments)
+testing_soil_data$Field_Location <- sub("_.*", "", testing_soil_data$Env)
+
+# Print the updated data frame
+print(testing_soil_data)
+```
+
+```{r}
+test3<-left_join(test2, testing_soil_data, by = "Field_Location")
+```
+
+```{r}
+testing_meta_data <- testing_meta_data[, !grepl("Issue/comment", names(testing_meta_data))]
+# Calculate average latitude and longitude
+testing_meta_data$Average_Latitude <- rowMeans(testing_meta_data[, c(
+  "Latitude_of_Field_Corner_#1 (lower left)",
+  "Latitude_of_Field_Corner_#2 (lower right)",
+  "Latitude_of_Field_Corner_#3 (upper right)",
+  "Latitude_of_Field_Corner_#4 (upper left)"
+)], na.rm = TRUE)
+
+testing_meta_data$Average_Longitude <- rowMeans(testing_meta_data[, c(
+  "Longitude_of_Field_Corner_#1 (lower left)",
+  "Longitude_of_Field_Corner_#2 (lower right)",
+  "Longitude_of_Field_Corner_#3 (upper right)",
+  "Longitude_of_Field_Corner_#4 (upper left)"
+)], na.rm = TRUE)
+
+# Remove the corner columns
+corner_columns <- c(
+  "Latitude_of_Field_Corner_#1 (lower left)",
+  "Latitude_of_Field_Corner_#2 (lower right)",
+  "Latitude_of_Field_Corner_#3 (upper right)",
+  "Latitude_of_Field_Corner_#4 (upper left)",
+  "Longitude_of_Field_Corner_#1 (lower left)",
+  "Longitude_of_Field_Corner_#2 (lower right)",
+  "Longitude_of_Field_Corner_#3 (upper right)",
+  "Longitude_of_Field_Corner_#4 (upper left)"
+)
+
+testing_meta_data <- testing_meta_data[, !names(testing_meta_data) %in% corner_columns]
+
+# Assuming testing_meta_data is your data frame
+# Remove columns 8, 9, 13, and 14
+testing_meta_data <- testing_meta_data[, -c(8, 9, 13, 14)]
+testing_meta_data <- testing_meta_data[, -c(8)]
+
+# Print the updated column names to verify
+print(names(testing_meta_data))
+
+testing_meta_data$Field_Location <- sub("_.*", "", testing_meta_data$Env)
+
+
+
+```
+
+```{r}
+test4 <- left_join(test3, testing_meta_data,by = "Field_Location")
+```
+
+```{r}
+# Load the dplyr package
+library(dplyr)
+
+# Combine the data frames by rows
+testing_combined_weather <- bind_rows(testing_weather_season, testing_weather_year)
+testing_combined_weather$Field_Location <- sub("_.*", "", testing_combined_weather$Env)
+
+# Remove the Date column
+testing_combined_weather <- testing_combined_weather %>% select(-Date)
+
+# Aggregate the data by Env and calculate the average for other columns
+testing_aggregated_weather <- testing_combined_weather %>%
+  group_by(Field_Location) %>%
+  summarise(across(everything(), mean, na.rm = TRUE))
+
+testing_aggregated_weather <- testing_aggregated_weather %>% select(-Env)
+
+# Print the combined data frame
+print(testing_aggregated_weather)
+```
+```{r}
+testingG2F <- left_join(test4, testing_aggregated_weather, by = "Field_Location")
+```
+
+```{r}
+write_csv(testingG2F, "testingG2F.csv")
+```
+

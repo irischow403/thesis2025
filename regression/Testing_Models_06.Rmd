@@ -1,0 +1,370 @@
+---
+title: "Testing_Models_06"
+author: "Iris Chow"
+date: "2025-01-08"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(readr)
+subset_train_data_top5hybrid <- read_csv("~/UIUCDigitalHand/Subset_training_data/subset_train_data_top5hybrid.csv")
+#View(subset_train_data_top5hybrid)
+```
+
+```{r}
+# Count the number of missing values in each column
+colSums(is.na(subset_train_data_top5hybrid))
+
+```
+
+
+# Split data into testing and training
+```{r}
+library(caret)
+# Remove rows with missing values
+subset_train_data_top5hybrid <- na.omit(subset_train_data_top5hybrid)
+
+subset_train_data_top5hybrid <- subset_train_data_top5hybrid %>%
+                rename(K_Sat = '%K Sat') %>%
+                rename(Ca_Sat = '%Ca Sat') %>%
+                rename(Mg_Sat = '%Mg Sat') %>%
+                rename(Na_Sat = '%Na Sat') %>%
+                rename(Sand = '% Sand') %>%
+                rename(Silt = '% Silt') %>%
+                rename(Clay = '% Clay') 
+
+# Create a 70/30 split for training/testing
+set.seed(123)  # For reproducibility
+trainIndex <- createDataPartition(subset_train_data_top5hybrid$Yield_Mg_ha, p = 0.7, list = FALSE, times = 1)
+
+# Split the data
+train_data <- subset_train_data_top5hybrid[trainIndex, ]
+test_data  <- subset_train_data_top5hybrid[-trainIndex, ]
+
+# Verify split
+dim(train_data)
+dim(test_data)
+
+```
+
+# Fit random forest model and obtain RMSE and accuracy
+
+```{r}
+# Load necessary libraries
+library(randomForest)
+library(caret)
+
+# Fit the random forest model
+set.seed(123)  # For reproducibility
+rf_model <- randomForest(Yield_Mg_ha ~ ., data = train_data, importance = TRUE)
+
+# Predict on the test data
+rf_predictions <- predict(rf_model, newdata = test_data)
+
+# Calculate RMSE
+rmse <- sqrt(mean((test_data$Yield_Mg_ha - rf_predictions)^2))
+print(paste("RMSE: ", rmse))
+
+
+```
+
+# SVM
+
+
+
+```{r}
+
+# Load necessary library
+library(dplyr)
+
+# Function to identify and remove factors with levels more than 2 and character columns
+remove_factors_and_characters <- function(df) {
+  df %>% 
+    select_if(function(col) !(is.factor(col) && nlevels(col) > 2)) %>% 
+    select_if(function(col) !is.character(col))
+}
+
+# Apply the function to your dataset
+subset_train_data_top5hybrid1 <- remove_factors_and_characters(subset_train_data_top5hybrid)
+
+# Verify the change
+str(subset_train_data_top5hybrid1)
+
+
+
+
+
+
+```
+
+
+```{r}
+# Load necessary library
+library(caret)
+
+# Create a 70/30 split for training/testing using caret
+set.seed(123)  # For reproducibility
+trainIndex <- createDataPartition(subset_train_data_top5hybrid1$Yield_Mg_ha, p = 0.7, list = FALSE, times = 1)
+
+# Split the data
+train_data <- subset_train_data_top5hybrid1[trainIndex, ]
+test_data  <- subset_train_data_top5hybrid1[-trainIndex, ]
+
+# Ensure factor levels in test data match those in the training data
+#levels(test_data$Env) <- levels(train_data$Env)
+
+# Fit the SVM model
+svm_model <- svm(Yield_Mg_ha ~ ., data = train_data)
+
+# Predict on the test data
+svm_predictions <- predict(svm_model, newdata = test_data)
+
+# Calculate RMSE for SVM
+svm_rmse <- sqrt(mean((test_data$Yield_Mg_ha - svm_predictions)^2))
+print(paste("SVM RMSE: ", svm_rmse))
+
+
+```
+
+# Linear 
+```{r}
+# Fit the linear model
+linear_model <- lm(Yield_Mg_ha ~ ., data = train_data)
+
+# Predict on the test data
+linear_predictions <- predict(linear_model, newdata = test_data)
+
+# Calculate RMSE for Linear Model
+linear_rmse <- sqrt(mean((test_data$Yield_Mg_ha - linear_predictions)^2))
+print(paste("Linear Model RMSE: ", linear_rmse))
+
+```
+
+# Artificial Neural Network
+```{r}
+# Load necessary libraries
+library(nnet)
+
+# Fit the ANN model
+set.seed(123)  # For reproducibility
+ann_model <- nnet(Yield_Mg_ha ~ ., data = train_data, size = 5, linout = TRUE, maxit = 200)
+
+# Predict on the test data
+ann_predictions <- predict(ann_model, newdata = test_data)
+
+# Calculate RMSE for ANN model
+ann_rmse <- sqrt(mean((test_data$Yield_Mg_ha - ann_predictions)^2))
+print(paste("ANN RMSE: ", ann_rmse))
+
+```
+```{r}
+# Fit the ANN model with a smaller hidden layer
+set.seed(123)  # For reproducibility
+ann_model <- nnet(Yield_Mg_ha ~ ., data = train_data, size = 1, linout = TRUE, maxit = 200)
+
+# Predict on the test data
+ann_predictions <- predict(ann_model, newdata = test_data)
+
+# Calculate RMSE for ANN model
+ann_rmse <- sqrt(mean((test_data$Yield_Mg_ha - ann_predictions)^2))
+print(paste("ANN RMSE: ", ann_rmse))
+
+```
+# PCA
+```{r}
+# Load necessary libraries
+library(caret)
+library(dplyr)
+
+```
+
+```{r}
+# Remove non-numeric columns and handle missing values
+numeric_data <- subset_train_data_top5hybrid %>%
+  select_if(is.numeric) %>%
+  na.omit()
+
+```
+
+```{r}
+# Perform PCA on the prepared data
+preProc <- preProcess(numeric_data, method = "pca", pcaComp = 50)
+pca_data <- predict(preProc, numeric_data)
+
+```
+
+```{r}
+# Select the top 50 principal components
+top_50_pca <- as.data.frame(pca_data)
+
+# Check the structure of the top 50 PCA components
+str(top_50_pca)
+
+```
+```{r}
+# Perform PCA
+pca_result <- prcomp(numeric_data, scale. = TRUE)
+
+# View the loadings (contributions of the original variables to the PCs)
+loadings <- pca_result$rotation
+
+```
+
+```{r}
+# Select the loadings for the top 50 principal components
+loadings_top_50 <- loadings[, 1:50]
+
+# View the loadings
+print(loadings_top_50)
+
+```
+```{r}
+# Find the variables with the highest absolute loadings for each PC
+influential_vars <- apply(loadings_top_50, 2, function(x) names(sort(abs(x), decreasing = TRUE)[1:5]))
+
+# View the most influential variables for each of the top 50 PCs
+print(influential_vars)
+
+```
+
+
+
+# Fit ANN again with top 50 variables in PCA
+
+```{r}
+# Load necessary libraries
+# Load necessary libraries
+library(caret)
+
+# Perform PCA
+pca_result <- prcomp(numeric_data, scale. = TRUE)
+
+# Get the loadings for the first principal component (PC1)
+loadings_PC1 <- pca_result$rotation[, 1]
+
+# Identify the top 50 variables contributing to PC1
+top_50_vars_PC1 <- names(sort(abs(loadings_PC1), decreasing = TRUE)[1:50])
+
+# View the top 50 variables
+print(top_50_vars_PC1)
+
+
+```
+
+```{r}
+# Extract the top 50 variables from the original dataset
+subset_top_50_vars <- numeric_data[, top_50_vars_PC1]
+subset_top_50_vars$Yield_Mg_ha <- numeric_data$Yield_Mg_ha
+
+# Verify the dataset
+str(subset_top_50_vars)
+
+```
+
+```{r}
+# Load necessary library
+library(nnet)
+
+# Split the data into training and testing sets
+set.seed(123)  # For reproducibility
+trainIndex <- createDataPartition(subset_top_50_vars$Yield_Mg_ha, p = 0.7, list = FALSE, times = 1)
+train_data <- subset_top_50_vars[trainIndex, ]
+test_data <- subset_top_50_vars[-trainIndex, ]
+
+# Fit the ANN model
+ann_model <- nnet(Yield_Mg_ha ~ ., data = train_data, size = 5, linout = TRUE, maxit = 200)
+
+# Predict on the test data
+ann_predictions <- predict(ann_model, newdata = test_data)
+
+# Calculate RMSE for ANN model
+ann_rmse <- sqrt(mean((test_data$Yield_Mg_ha - ann_predictions)^2))
+print(paste("ANN RMSE: ", ann_rmse))
+
+```
+
+```{r}
+# Load necessary library
+library(xgboost)
+
+# Prepare the data for XGBoost
+train_matrix <- xgb.DMatrix(data = as.matrix(train_data[, -ncol(train_data)]), label = train_data$Yield_Mg_ha)
+test_matrix <- xgb.DMatrix(data = as.matrix(test_data[, -ncol(test_data)]), label = test_data$Yield_Mg_ha)
+
+# Set XGBoost parameters
+params <- list(objective = "reg:squarederror", eval_metric = "rmse")
+
+# Train the model
+xgb_model <- xgb.train(params = params, data = train_matrix, nrounds = 100)
+
+# Predict on test data
+xgb_predictions <- predict(xgb_model, test_matrix)
+
+# Calculate RMSE
+xgb_rmse <- sqrt(mean((test_data$Yield_Mg_ha - xgb_predictions)^2))
+print(paste("XGBoost RMSE: ", xgb_rmse))
+
+```
+
+```{r}
+# Load necessary library
+library(lightgbm)
+
+# Prepare the data for LightGBM
+train_matrix <- lgb.Dataset(data = as.matrix(train_data[, -ncol(train_data)]), label = train_data$Yield_Mg_ha)
+test_matrix <- as.matrix(test_data[, -ncol(test_data)])
+
+# Set LightGBM parameters
+params <- list(objective = "regression", metric = "rmse")
+
+# Train the model
+lgb_model <- lgb.train(params = params, data = train_matrix, nrounds = 100)
+
+# Predict on test data
+lgb_predictions <- predict(lgb_model, test_matrix)
+
+# Calculate RMSE
+lgb_rmse <- sqrt(mean((test_data$Yield_Mg_ha - lgb_predictions)^2))
+print(paste("LightGBM RMSE: ", lgb_rmse))
+
+```
+
+
+```{r}
+# Load necessary libraries
+library(randomForest)
+library(caret)
+
+# Function to train a Random Forest model with a specific seed
+train_rf_model <- function(seed) {
+  set.seed(seed)
+  model <- randomForest(Yield_Mg_ha ~ ., data = train_data, importance = TRUE)
+  return(model)
+}
+
+# List of prime numbers for seeding
+prime_seeds <- c(101, 103, 107, 109, 113)
+
+# Train multiple models using different seeds
+rf_models <- lapply(prime_seeds, train_rf_model)
+
+# Predict on the test data using each model
+rf_predictions_list <- lapply(rf_models, function(model) predict(model, newdata = test_data))
+
+# Average the predictions
+rf_predictions <- rowMeans(do.call(cbind, rf_predictions_list))
+
+# Calculate RMSE
+rmse <- sqrt(mean((test_data$Yield_Mg_ha - rf_predictions)^2))
+print(paste("Averaged Random Forest RMSE: ", rmse))
+
+```
+```{r}
+# subset 50- 50 hybeod
+test
+```
+
