@@ -3,7 +3,7 @@
 # change tuneLength to 10, accuracy = .815
 # Specify a Grid for Tuning, accuracy =.8
 # use optimism boot
-setwd("~/August2024_thesis/Kaggle G2F")
+#setwd("~/August2024_thesis/Kaggle G2F")
 #setwd("~/Fall24/Spatial Analytics/Kaggle G2F/Kaggle G2F")
 # Load necessary libraries
 library(dplyr)
@@ -11,35 +11,71 @@ library(caret)
 library(readr)
 
 data <- read.csv("G2F_data.csv")
-# Assuming the dataset is already loaded as 'data'
-# Convert 'hybrid_binomial' into a Y/N factor and 
+data$year <- as.factor(data$year)
+data$Win_YN <- as.factor(data$Win_YN)
+data$Hybrid <- as.factor(data$Hybrid)
+data$Env <- NULL
+data$field_location <- as.factor(data$field_location)
 
-# data <- data %>% 
-#   mutate(Win_YN = ifelse(hybrid_binomial > 0.5, "Y", "N")) %>%
-#   select(-hybrid_binomial)  # Drop the 'hybrid_binomial' column
-# Convert the new variable to a factor
-#data$Win_YN <- as.factor(data$Win_YN)
 
 # Display the first few rows to confirm changes
 head(data)
-
+str(data)
 # Split the data into training and testing sets
 set.seed(123)  # For reproducibility
-train_index <- createDataPartition(data$Win_YN, p = 0.8, list = FALSE)
+train_index <- createDataPartition(data$Win_YN, p = 0.7, list = FALSE)
 train_data <- data[train_index, ]
 test_data <- data[-train_index, ]
 
-# Train a Random Forest classification model using caret (took too long to run)
-#rf_model <- train(Win_YN ~ ., data = data, 
-#                  method = "rf", 
-#                  trControl = trainControl(method = "optimism_boot", number = 25), 
-#                  tuneLength = 10)
-#Tune Additional Parameters
+# logistic regression
+# Train a logistic regression model using caret
+log_model <- train(Win_YN ~ ., data = data, method = "glm", family = "binomial", 
+                   trControl = trainControl(method = "cv", number = 5), tuneLength = 3)
+predictions <- predict(log_model, newdata = test_data)
+# accuracy
+conf_matrix <- confusionMatrix(predictions, test_data$Win_YN)
+conf_matrix$overall["Accuracy"] #.8303
+# save log_model as a file
+save(log_model, file = "log_model.RData")
+
+# Decision Tree
+# Train a decision tree model using caret
+dt_model <- train(Win_YN ~ ., data = data, method = "rpart", 
+                  trControl = trainControl(method = "cv", number = 5), tuneLength = 3)
+# Make predictions on the training data
+predictions <- predict(dt_model, newdata = test_data)
+# Evaluate the model performance
+conf_matrix <- confusionMatrix(predictions, test_data$Win_YN)
+conf_matrix$overall["Accuracy"] #.719
+# save dt_model as a file
+save(dt_model, file = "dt_model.RData")
+
+# Random Forest
 rf_model <- train(Win_YN ~ ., data = data, method = "rf", 
+                  trControl = trainControl(method = "cv", number = 5), tuneLength = 3)
+# Make predictions on the training data
+predictions <- predict(rf_model, newdata = test_data)
+# Evaluate the model performance
+conf_matrix <- confusionMatrix(predictions, test_data$Win_YN)
+conf_matrix$overall["Accuracy"] # 1
+# save rf_model as a file
+save(rf_model, file = "rf_model.RData")
+
+
+# Random Forest setting ntree = 500
+rf_model_2 <- train(Win_YN ~ ., data = data, method = "rf", 
                   trControl = trainControl(method = "cv", number = 5), 
                   tuneLength = 3, ntree = 500)
+# Make predictions on the training data
+predictions <- predict(rf_model_2, newdata = test_data)
+# Evaluate the model performance
+conf_matrix <- confusionMatrix(predictions, test_data$Win_YN)
+conf_matrix$overall["Accuracy"] # 1
+# save rf_model_2 as a file
+save(rf_model_2, file = "rf_model_2.RData")
+
 # Adjust Cross-Validation Method (accuracy = 81.7%)
-#trControl = trainControl(method = "repeatedcv", number = 5, repeats = 3)
+trControl = trainControl(method = "repeatedcv", number = 5, repeats = 3)
 #rf_model <- train(Win_YN ~ ., data = data, method = "rf", 
 #                  trControl = trControl, tuneLength = 3)
 
