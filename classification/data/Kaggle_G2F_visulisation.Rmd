@@ -1,0 +1,147 @@
+---
+title: "Kaggle_G2F_visulisation"
+author: "Iris Chow"
+date: "2025-03-12"
+output:
+  word_document: default
+  html_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# load libraries
+```{r}
+setwd("C:/Users/botch/Downloads/genomes-to-field-corn-hybrid-prediction")
+library(readr)
+G2F_data <- read_csv("G2F_data.csv")
+library(ggplot2)
+```
+```{r}
+str(G2F_data)
+```
+
+
+```{r}
+library(ggplot2)
+
+# Subset the data to include columns 1-11 and 74-77
+visualised_col_df <- G2F_data[, c(1:11, 74:77)]
+
+# Loop through each column of the subset
+for (i in 1:ncol(visualised_col_df)) {
+  column_name <- colnames(visualised_col_df)[i]
+  current_col <- visualised_col_df[[column_name]]
+  num_missing <- sum(is.na(current_col))
+  
+  # Check if the column is numeric
+  if (is.numeric(current_col)) {
+    # Create histogram for numeric columns
+    p <- ggplot(visualised_col_df, aes(x = .data[[column_name]])) +
+      geom_histogram(fill = "skyblue", bins = 30, na.rm = TRUE) +
+      labs(title = paste0("Distribution of ", column_name),
+           x = column_name)
+  } else {
+    # Create bar plot for categorical columns
+    p <- ggplot(visualised_col_df, aes(x = .data[[column_name]])) +
+      geom_bar(fill = "salmon", na.rm = TRUE) +
+      labs(title = paste0("Distribution of ", column_name),
+           x = column_name)
+  }
+  
+  print(p)
+}
+```
+# make plot one by one to adjust labels and axis
+```{r}
+# Hybrid
+# arrange in descending order by count
+library(forcats)  # Load forcats for factor reordering
+
+ggplot(G2F_data, aes(x = fct_infreq(Hybrid))) +
+  geom_bar(fill = "salmon", na.rm = TRUE) +
+  labs(title = "Distribution of Hybrid", x = "Hybrid") +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1))
+
+```
+
+```{r}
+# Environment
+ggplot(G2F_data, aes(x = fct_infreq(Env))) +
+  geom_bar(fill = "salmon", na.rm = TRUE) +
+  labs(title = "Distribution of Environment",
+       x = "Environment")+ theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+```
+
+```{r}
+
+# add percentage of proportion in the piechart
+ggplot(G2F_data, aes(x = "", fill = Win_YN)) +
+  geom_bar(width = 1, na.rm = TRUE) +
+  coord_polar("y") +
+  labs(title = "Distribution of Win_YN", fill = "Win_YN") +
+  scale_fill_manual(values = c("salmon", "skyblue")) +
+  theme_void() +
+  geom_text(aes(label = scales::percent(..count../sum(..count..))),
+            stat = "count",
+            position = position_stack(vjust = 0.5))
+
+```
+```{r}
+# moisture
+ggplot(G2F_data, aes(x = moisture)) +
+  geom_histogram(fill = "skyblue", bins = 30, na.rm = TRUE) +
+  labs(title = "Distribution of Moisture",
+       x = "Moisture") + xlim(5,45)
+max(G2F_data$moisture, na.rm = TRUE)
+```
+```{r}
+# test weight
+ggplot(G2F_data, aes(x = test_weight)) +
+  geom_histogram(fill = "skyblue", bins = 30, na.rm = TRUE) +
+  labs(title = "Distribution of Test Weight",
+       x = "Test Weight")
+# set x-axis from 400 to 1000
+ggplot(G2F_data, aes(x = test_weight)) +
+  geom_histogram(fill = "skyblue", bins = 30, na.rm = TRUE) +
+  labs(title = "Distribution of Test Weight",
+       x = "Test Weight") +
+  xlim(450, 900)
+```
+```{r}
+#root_lodging
+ggplot(G2F_data, aes(x = root_lodging)) +
+  geom_histogram(fill = "skyblue", bins = 30, na.rm = TRUE) +
+  labs(title = "Distribution of Root Lodging",
+       x = "Root Lodging") + xlim(0,20) + ylim(0, 300)
+```
+
+```{r}
+#stalk_lodging
+ggplot(G2F_data, aes(x = stalk_lodging)) +
+  geom_histogram(fill = "skyblue", bins = 30, na.rm = TRUE) +
+  labs(title = "Distribution of Stalk Lodging",
+       x = "Stalk Lodging") + xlim(0,25) 
+```
+```{r}
+# convert year to a factor variable
+G2F_data$year <- as.factor(G2F_data$year)
+# Make histogram for year
+ggplot(G2F_data, aes(x = year)) +
+  geom_bar(fill = "salmon", na.rm = TRUE) +
+  labs(title = "Distribution of Year",
+       x = "Year")
+```
+```{r}
+# field_location
+ggplot(G2F_data, aes(x = fct_infreq(field_location))) +
+  geom_bar(fill = "salmon", na.rm = TRUE) +
+  labs(title = "Distribution of Field Location",
+       x = "Field Location") + theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+```
+```{r}
+summary(G2F_data)
+```
+
