@@ -73,18 +73,6 @@ conf_matrix$overall["Accuracy"] # 1
 # save rf_model_2 as a file
 save(rf_model_2, file = "rf_model_2.RData")
 
-# Adjust Cross-Validation Method (accuracy = 81.7%)
-trControl = trainControl(method = "repeatedcv", number = 5, repeats = 3)
-rf_model_3 <- train(Win_YN ~ ., data = data, method = "rf", 
-                  trControl = trControl, tuneLength = 3)
-# Make predictions on the training data
-predictions <- predict(rf_model_3, newdata = test_data)
-# Evaluate the model performance
-conf_matrix <- confusionMatrix(predictions, test_data$Win_YN)
-conf_matrix$overall["Accuracy"] # 1
-# save rf_model_3 as a file
-save(rf_model_3, file = "rf_model_3.RData")
-
 # Make submission file
 kaggle_prediction <- read_csv("kaggle_prediction.csv")
 # change data format like before
@@ -118,11 +106,6 @@ kaggle_predictions <- predict(rf_model_2, newdata = kaggle_prediction)
 submission <- data.frame(ID = 1:length(kaggle_predictions), Win_YN = kaggle_predictions)
 write_csv(submission, "rf_model_2_prediction.csv") #.844
 
-# rf_model_3
-kaggle_predictions <- predict(rf_model_3, newdata = kaggle_prediction)
-submission <- data.frame(ID = 1:length(kaggle_predictions), Win_YN = kaggle_predictions)
-write_csv(submission, "rf_model_3_prediction.csv") #.832
-
 # Load necessary libraries
 library(ggplot2)
 library(caret)
@@ -153,6 +136,26 @@ var_imp <- varImp(rf_model_2, scale = FALSE)
 # Plot the variable importance
 plot(var_imp, main = "Variable Importance")
 
+# -------------------------------
+# Calculate variable importance from the Random Forest model
+var_imp <- varImp(rf_model_2, scale = FALSE)
+
+# Convert the importance into a data frame
+var_imp_df <- data.frame(Variable = rownames(var_imp$importance), 
+                         Importance = var_imp$importance$Overall)
+
+# Sort the variables by importance in descending order and select the top 10
+top10_vars <- var_imp_df[order(var_imp_df$Importance, decreasing = TRUE), ][1:10, ]
+
+# Plot the top 10 most important variables using ggplot2
+library(ggplot2)
+ggplot(top10_vars, aes(x = reorder(Variable, Importance), y = Importance)) +
+  geom_bar(stat = "identity", fill = "steelblue") +
+  coord_flip() +
+  labs(title = "Top 10 Most Important Variables", 
+       x = "Variables", 
+       y = "Importance") +
+  theme_minimal()
 
 
 
