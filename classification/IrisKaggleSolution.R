@@ -17,7 +17,6 @@ data$Hybrid <- as.factor(data$Hybrid)
 data$Env <- NULL
 data$field_location <- as.factor(data$field_location)
 
-
 # Display the first few rows to confirm changes
 head(data)
 str(data)
@@ -76,64 +75,84 @@ save(rf_model_2, file = "rf_model_2.RData")
 
 # Adjust Cross-Validation Method (accuracy = 81.7%)
 trControl = trainControl(method = "repeatedcv", number = 5, repeats = 3)
-#rf_model <- train(Win_YN ~ ., data = data, method = "rf", 
-#                  trControl = trControl, tuneLength = 3)
-
-# Display the model results
-print(rf_model)
-
+rf_model_3 <- train(Win_YN ~ ., data = data, method = "rf", 
+                  trControl = trControl, tuneLength = 3)
 # Make predictions on the training data
-predictions <- predict(rf_model, newdata = test_data)
-
+predictions <- predict(rf_model_3, newdata = test_data)
 # Evaluate the model performance
-#conf_matrix <- confusionMatrix(predictions, data$Win_YN)
-#print(conf_matrix)
+conf_matrix <- confusionMatrix(predictions, test_data$Win_YN)
+conf_matrix$overall["Accuracy"] # 1
+# save rf_model_3 as a file
+save(rf_model_3, file = "rf_model_3.RData")
 
-
-# Load new dataset for Kaggle prediction
+# Make submission file
 kaggle_prediction <- read_csv("kaggle_prediction.csv")
+# change data format like before
+kaggle_prediction$year <- as.factor(kaggle_prediction$year)
+kaggle_prediction$Hybrid <- as.factor(kaggle_prediction$Hybrid)
+kaggle_prediction$Env <- NULL
+kaggle_prediction$field_location <- as.factor(kaggle_prediction$field_location)
 
-# Make predictions on the new Kaggle dataset
-kaggle_predictions <- predict(rf_model, newdata = kaggle_prediction)
-
-# Add predictions to the Kaggle dataset
-kaggle_prediction$hybrid_binomial <- kaggle_predictions
-
-# Create the output file with ID and hybrid_binomial columns
-kaggle_output <- kaggle_prediction %>% 
-  mutate(ID = row_number()) %>% 
-  select(ID, hybrid_binomial)
-
-# Save the output to a CSV file
-write_csv(kaggle_output, "kaggle_prediction_output.csv")
+# log_model
+kaggle_predictions <- predict(log_model, newdata = kaggle_prediction)
+submission <- data.frame(ID = 1:length(kaggle_predictions), Win_YN = kaggle_predictions)
 
 # Display the first few rows of the output file
-head(kaggle_output)
+head(submission)
 
-# split the data according to hybrid
+# Save the output to a CSV file
+write_csv(submission, "log_model_prediction.csv") #.828
 
-sapply(lapply(data, unique), length)
+# dt_model
+kaggle_predictions <- predict(dt_model, newdata = kaggle_prediction)
+submission <- data.frame(ID = 1:length(kaggle_predictions), Win_YN = kaggle_predictions)
+write_csv(submission, "dt_model_prediction.csv") #.684
 
-# make data list
+# rf_model
+kaggle_predictions <- predict(rf_model, newdata = kaggle_prediction)
+submission <- data.frame(ID = 1:length(kaggle_predictions), Win_YN = kaggle_predictions)
+write_csv(submission, "rf_model_prediction.csv") # .836
 
-data_list <- split(ml_df, ml_df$Hybrid)
+# rf_model_2
+kaggle_predictions <- predict(rf_model_2, newdata = kaggle_prediction)
+submission <- data.frame(ID = 1:length(kaggle_predictions), Win_YN = kaggle_predictions)
+write_csv(submission, "rf_model_2_prediction.csv") #.844
 
-# standardise per hybrid
+# rf_model_3
+kaggle_predictions <- predict(rf_model_3, newdata = kaggle_prediction)
+submission <- data.frame(ID = 1:length(kaggle_predictions), Win_YN = kaggle_predictions)
+write_csv(submission, "rf_model_3_prediction.csv") #.832
 
-for(i in 1:length(data_list)){
-  data_table <- as_tibble(data_list[[i]])
-  data_table$hybrid_binomial
-  data_table$hybrid_binomial <- as.numeric(data_table$hybrid_binomial)
-  data_table$hybrid_binomial  <- scale(data_table$hybrid_binomial , center = FALSE, scale = max(data_table$hybrid_binomial ))
-  
-}
+# Load necessary libraries
+library(ggplot2)
+library(caret)
 
-# making feature importance plot
-# Extract feature importance
-feature_importance <- importance(rf_model)
+# Visualization for rf_model_2
+# -------------------------------
+# Visualization 1: Confusion Matrix Heatmap
+# -------------------------------
+# Convert the confusion matrix table to a data frame
+conf_df <- as.data.frame(conf_matrix$table)
 
-# Convert feature importance to a data frame
-feature_importance_df <- as.data.frame(feature_importance)
+# Create the confusion matrix heatmap
+conf_matrix_plot <- ggplot(data = conf_df, aes(x = Reference, y = Prediction, fill = Freq)) +
+  geom_tile(color = "black") +
+  geom_text(aes(label = Freq), size = 6, color = "white") +
+  scale_fill_gradient(low = "skyblue", high = "navy") +
+  labs(title = "Confusion Matrix", x = "Actual Class", y = "Predicted Class") +
+  theme_minimal()
+
+# Display the plot
+print(conf_matrix_plot)
+
+# -------------------------------
+# Visualization 2: Variable Importance Plot
+# -------------------------------
+# Calculate variable importance from the Random Forest model
+var_imp <- varImp(rf_model_2, scale = FALSE)
+# Plot the variable importance
+plot(var_imp, main = "Variable Importance")
+
 
 
 
